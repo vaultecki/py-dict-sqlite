@@ -5,9 +5,9 @@ import sqlite3 as sqlite
 import uuid
 
 
-class MyDb:
+class VaultDBDict:
     def __init__(self, filename, db_layout, password="none", debug=False):
-        """Makes easier working with SQL
+        """Try to smooth out handling sqlite as dict with get and set methods
             :param filename: name of the sql file
             :type filename: str
             :param db_layout: db layout to be created
@@ -32,7 +32,7 @@ class MyDb:
         if not self.db_exists:
             self.__print("db {} does not exist - creating".format(filename))
             self.create_tables()
-        # self.get_data()
+        self.get_data()
 
     def __print(self, text):
         if self.debug:
@@ -228,14 +228,14 @@ class MyDb:
             new_key = list(new_data.keys())[0]
             new_value = list(new_data.values())[0]
             self.__print("delete")
-            existing_data = copy.deepcopy(self.data.get(table).get(new_key))
+            existing_data = copy.deepcopy(self.data.get(table, {}).get(new_key, {}))
             self.del_data(new_data, table)
             self.__print("insert")
             insert_primary_str, insert_primary_value_str, insert_primary_value = self.insert_primary(table, new_key)
             insert_str = "INSERT INTO {} ({}".format(table, insert_primary_str)
             value_str = " VALUES ({}".format(insert_primary_value_str)
             values = insert_primary_value
-            for key in self.keys.get(table):
+            for key in self.keys.get(table, []):
                 if key not in self.primary.get(table, False):
                     insert_str += "{},".format(key)
                     value_str += "?,"
@@ -272,33 +272,32 @@ class MyDb:
 
 
 if __name__ == "__main__":
-    path_dir = os.getcwd()  # "C:\\Temp"
+    path_dir = "/tmp"
+    # os.getcwd()  # "C:\\Temp"
 
     db_layout = {"key_user": {"uid": "TEXT NOT NULL PRIMARY KEY", "name": "TEXT NOT NULL", "create_date": "TEXT"},
                  "lock": {"mac": "TEXT NOT NULL PRIMARY KEY", "name": "TEXT NOT NULL", "create_date": "TEXT", "last_seen": "TEXT"},
-                 "access": {"lock": "TEXT NOT NULL PRIMARY KEY", "key_user": "TEXT NOT NULL"},
+                 "access": {"lock": "TEXT NOT NULL PRIMARY KEY", "key_user": "TEXT NOT NULL PRIMARY KEY"},
                  "web_user": {"uuid": "TEXT NOT NULL PRIMARY KEY", "password": "TEXT NOT NULL", "name": "TEXT NOT NULL", "role": "TEXT", "create_date": "TEXT"},
                  "log": {"uuid": "TEXT NOT NULL PRIMARY KEY", "date": "TEXT", "key_user": "TEXT NOT NULL", "lock": "TEXT NOT NULL", "accessed": "INTEGER"}}
     user_db_filename = os.path.join(path_dir, "lock_user.db")
-    user_db = MyDb(user_db_filename, db_layout, debug=False)
+    user_db = VaultDBDict(user_db_filename, db_layout, debug=True)
 
     print("User DB")
     print(user_db.get_data("key_user"))
 
-    new_user = {"Hans": {"password": "test", "role": "admin"}}
+    new_user = {"id_1": {"name": "Hans", "create_date": "admin"}}
     user_db.set_data(new_user, "key_user")
     print(user_db.get_data("key_user"))
     time_str = datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
-    new_user = {"Hans": {"password": time_str, "role": "admin"}}
+    new_user = {"1": {"create_date": time_str, "name": "admin"}}
     user_db.set_data(new_user, "user")
     print(user_db.get_data())
 
     test_db_layout = {"access": {"lid": "TEXT NOT NULL PRIMARY KEY", "uid": "TEXT NOT NULL PRIMARY KEY", "access": "BOOL"}}
     test_db_filename = os.path.join(path_dir, "test.db")
-    test_db = MyDb(test_db_filename, test_db_layout, debug=True)
+    test_db = VaultDBDict(test_db_filename, test_db_layout, debug=True)
     print("Test DB")
     print("test_db entries: {}".format(test_db.get_data("access")))
     new_door = {("2", "1"): {"access": True}}
     test_db.set_data(new_door, "access")
-
-    pass
