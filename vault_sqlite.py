@@ -2,7 +2,6 @@ import copy
 import datetime
 import os
 import sqlite3 as sqlite
-import uuid
 
 
 class VaultDBDict:
@@ -12,7 +11,7 @@ class VaultDBDict:
             :type filename: str
             :param db_layout: db layout to be created
             :type db_layout: dict
-            :param password: password for database protection, optional
+            :param password: password for database protection, optional, not used for now
             :type password: str
 
         """
@@ -32,7 +31,7 @@ class VaultDBDict:
         if not self.db_exists:
             self.__print("db {} does not exist - creating".format(filename))
             self.create_tables()
-        self.get_data()
+        # self.get_data()
 
     def __print(self, text):
         if self.debug:
@@ -52,7 +51,7 @@ class VaultDBDict:
         for key in json_str:
             attribute = json_str.get(key)
             self.__print("table: {}; key: {}; value: {}".format(table, key, attribute))
-            if type(attribute) == dict:
+            if type(attribute) is dict:
                 for attribute in json_str.get(key, {}):
                     table_str = json_str.get(key, {})
                     db_str += self.create_table_column(attribute, table_str.get(attribute), table)
@@ -64,7 +63,7 @@ class VaultDBDict:
     def create_table_primary(self, table):
         primary = self.primary.get(table, False)
         return_string = ""
-        if type(primary) == list:
+        if type(primary) is list:
             return_string = ", PRIMARY KEY ("
             for element in primary:
                 return_string += "{}, ".format(element)
@@ -75,7 +74,7 @@ class VaultDBDict:
         # " {} {},".format(attribute, table_str.get(attribute))
         primary = self.primary.get(table, False)
         attribute = attribute.upper()
-        if type(primary) == list:
+        if type(primary) is list:
             if "PRIMARY KEY" in attribute:
                 attribute = attribute.replace(" PRIMARY KEY", "")
                 if "NOT NULL" not in attribute:
@@ -97,7 +96,7 @@ class VaultDBDict:
                     if not primary:
                         primary = key
                     else:
-                        if type(primary) != list:
+                        if type(primary) is not list:
                             primary = [primary]
                         primary.append(key)
                     self.primary.update({table: primary})
@@ -122,14 +121,13 @@ class VaultDBDict:
         """
         data = {}
         if len(rdata) > 0:
-            primary = self.primary.get(table, False)
+            primary = self.primary.get(table, "")
             if not primary:
                 return data
-            entry_layout = self.db_layout.get(table)
             for new_data in rdata:
                 start_data = 1
                 new_key = new_data[0]
-                if type(primary) == list:
+                if type(primary) is list:
                     start_data = len(primary)
                     new_key = []
                     for i in range(start_data):
@@ -145,7 +143,7 @@ class VaultDBDict:
 
     def get_data(self, table_name=False):
         """Get data from table
-            :param table_name: table name to be searched
+            :param table_name: name to be searched
             :type table_name: str
             :return: got tables
             :rtype: dict
@@ -154,7 +152,7 @@ class VaultDBDict:
         for table in self.db_layout:
             cmd = "SELECT "
             primary = self.primary.get(table, False)
-            if type(primary) == list:
+            if type(primary) is list:
                 for element in primary:
                     cmd += "{}, ".format(element)
             else:
@@ -198,7 +196,7 @@ class VaultDBDict:
             self.__print("data exists - delete first")
             primary = self.primary.get(table, False)
             cmd_str = "DELETE FROM {} WHERE ".format(table)
-            if type(primary) != list:
+            if type(primary) is not list:
                 cmd_str += "{}=?".format(primary)
                 del_key = (del_key,)
             else:
@@ -220,11 +218,11 @@ class VaultDBDict:
             :rtype: int
         """
         if new_data == {}:
-            self.__print("Primary key {} for table {} not set in new data".format(self.primary.get(table, False), table))
+            self.__print("Primary key {} for table {} not set in new data".format(self.primary.get(table, False),
+                                                                                  table))
         else:
             if self.data.get(table, {}) == {}:
                 self.get_data()
-            existing_data = {}
             new_key = list(new_data.keys())[0]
             new_value = list(new_data.values())[0]
             self.__print("delete")
@@ -237,13 +235,13 @@ class VaultDBDict:
             values = insert_primary_value
             for key in self.keys.get(table, []):
                 if key not in self.primary.get(table, False):
-                    insert_str += "{},".format(key)
-                    value_str += "?,"
+                    insert_str += "{}, ".format(key)
+                    value_str += "?, "
                     if key in new_value:
                         values.append(new_value.get(key))
                     else:
                         values.append(existing_data.get(key, ""))
-            cmd_str = "{}){})".format(insert_str[:-1], value_str[:-1])
+            cmd_str = "{}){})".format(insert_str[:-2], value_str[:-2])
             values = tuple(values)
             self.use_db(cmd_str, values)
         return 0
@@ -253,7 +251,7 @@ class VaultDBDict:
         return_value = []
         return_string_name = ""
         return_string_value = ""
-        if type(primary) == list:
+        if type(primary) is list:
             if len(primary) != len(new_key):
                 raise ValueError("missmatch key length")
             for i in range(len(primary)):
@@ -273,31 +271,51 @@ class VaultDBDict:
 
 if __name__ == "__main__":
     path_dir = "/tmp"
-    # os.getcwd()  # "C:\\Temp"
 
-    db_layout = {"key_user": {"uid": "TEXT NOT NULL PRIMARY KEY", "name": "TEXT NOT NULL", "create_date": "TEXT"},
-                 "lock": {"mac": "TEXT NOT NULL PRIMARY KEY", "name": "TEXT NOT NULL", "create_date": "TEXT", "last_seen": "TEXT"},
-                 "access": {"lock": "TEXT NOT NULL PRIMARY KEY", "key_user": "TEXT NOT NULL PRIMARY KEY"},
-                 "web_user": {"uuid": "TEXT NOT NULL PRIMARY KEY", "password": "TEXT NOT NULL", "name": "TEXT NOT NULL", "role": "TEXT", "create_date": "TEXT"},
-                 "log": {"uuid": "TEXT NOT NULL PRIMARY KEY", "date": "TEXT", "key_user": "TEXT NOT NULL", "lock": "TEXT NOT NULL", "accessed": "INTEGER"}}
-    user_db_filename = os.path.join(path_dir, "lock_user.db")
-    user_db = VaultDBDict(user_db_filename, db_layout, debug=True)
+    access_db_layout = {"user": {"uid": "TEXT NOT NULL PRIMARY KEY", "name": "TEXT NOT NULL", "create_date": "TEXT"},
+                        "lock": {"mac": "TEXT NOT NULL PRIMARY KEY", "name": "TEXT NOT NULL", "create_date": "TEXT",
+                                 "last_seen": "TEXT"},
+                        "access": {"lock": "TEXT NOT NULL PRIMARY KEY", "user": "TEXT NOT NULL PRIMARY KEY",
+                                   "access": "BOOL"},
+                        "log": {"uid": "TEXT NOT NULL PRIMARY KEY", "date": "TEXT", "user": "TEXT NOT NULL",
+                                "lock": "TEXT NOT NULL", "accessed": "INTEGER"}}
+    access_db_filename = os.path.join(path_dir, "example_access.db")
+    access_db = VaultDBDict(access_db_filename, access_db_layout, debug=False)
 
-    print("User DB")
-    print(user_db.get_data("key_user"))
+    print("Access DB")
 
-    new_user = {"id_1": {"name": "Hans", "create_date": "admin"}}
-    user_db.set_data(new_user, "key_user")
-    print(user_db.get_data("key_user"))
+    # users
+    new_user = {"id_1": {"test": "test stuff"}}
+    access_db.set_data(new_user, table="user")
+    print("users: {}".format(access_db.get_data("user")))
     time_str = datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
-    new_user = {"1": {"create_date": time_str, "name": "admin"}}
-    user_db.set_data(new_user, "user")
-    print(user_db.get_data())
+    new_user = {"id_1": {"create_date": time_str, "name": "Hans"}}
+    access_db.set_data(new_user, table="user")
+    print("users: {}".format(access_db.get_data("user")))
 
-    test_db_layout = {"access": {"lid": "TEXT NOT NULL PRIMARY KEY", "uid": "TEXT NOT NULL PRIMARY KEY", "access": "BOOL"}}
-    test_db_filename = os.path.join(path_dir, "test.db")
-    test_db = VaultDBDict(test_db_filename, test_db_layout, debug=True)
-    print("Test DB")
-    print("test_db entries: {}".format(test_db.get_data("access")))
-    new_door = {("2", "1"): {"access": True}}
-    test_db.set_data(new_door, "access")
+    # locks
+    print("locks: {}".format(access_db.get_data("lock")))
+    new_lock = {"mac_address_1": {"name": "front door", "create_date": "2024-09-24", "last_seen": "2024-10-01"}}
+    access_db.set_data(new_lock, table="lock")
+    new_lock = {"mac_address_2": {"name": "garage door", "create_date": "2024-09-24", "last_seen": "2024-10-01"}}
+    access_db.set_data(new_lock, table="lock")
+    print("locks: {}".format(access_db.get_data("lock")))
+
+    # access rights
+    print("access rights: {}".format(access_db.get_data("access")))
+    new_access = {("id_1", "mac_address_1"): {"access": True}}
+    access_db.set_data(new_access, table="access")
+    new_access = {("id_1", "mac_address_2"): {"access": False}}
+    access_db.set_data(new_access, table="access")
+    print("access rights: {}".format(access_db.get_data("access")))
+
+    # logs
+    import time
+    import uuid
+    import pprint
+    new_log_entry = {str(uuid.uuid4()): {"user": "id_1", "lock": "mac_address_2",
+                                         "date": str(time.time()), "accessed": 5}}
+    access_db.set_data(new_log_entry, table="log")
+
+    print("complete db json print - with pprint for better readability")
+    pprint.pprint(access_db.get_data())
