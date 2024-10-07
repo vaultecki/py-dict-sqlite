@@ -59,6 +59,12 @@ class VaultDBDict:
         return db_str
 
     def create_table_primary(self, table):
+        """Create string for a multi-column primary key if needed
+            :param table: name of the db table
+            :type table: str
+            :return: SQL statement part for a multi-column primary key
+            :rtype: str
+        """
         self.logger.debug("generate primary entry for table {} creation".format(table))
         primary = self.primary.get(table, False)
         return_string = ""
@@ -70,6 +76,16 @@ class VaultDBDict:
         return return_string
 
     def create_table_column(self, column, attribute, table):
+        """Create string for db creation for column, remove primary from attribute if multi-column primary key is needed
+            :param table: name of the db table
+            :type table: str
+            :param column: structure of the columns for the table
+            :type column: dict
+            :param attribute: attributes of teh actual column
+            :type attribute: str
+            :return: SQL command part
+            :rtype: str
+        """
         primary = self.primary.get(table, False)
         attribute = attribute.upper()
         if type(primary) is list:
@@ -185,10 +201,13 @@ class VaultDBDict:
         self.db_conn.commit()
         return return_value
 
-    def del_data(self, del_data_dict, table):
-        # print(del_data_dict)
-        # {"single_primary_key": True}
-        # {("primary_key1", "primary_key_2"): True}
+    def del_data(self, del_data_dict, table) -> None:
+        """delete data entry from table
+            :param del_data_dict: data entry to delete
+            :type del_data_dict: dict
+            :param table: table name to delete from
+            :type table: str
+        """
         del_key = list(del_data_dict.keys())[0]
         if del_key in self.data.get(table, {}).keys():
             self.logger.debug("key exists - delete")
@@ -212,12 +231,13 @@ class VaultDBDict:
             :type new_data: dict
             :param table: table name
             :type table: str
-            :return: returns 0
-            :rtype: int
+            :return: returns true or false
+            :rtype: bool
         """
         if new_data == {}:
             self.logger.info("Primary key {} for table {} not set in new data".format(self.primary.get(table,
                                                                                                        False), table))
+            return False
         else:
             if self.data.get(table, {}) == {}:
                 self.get_data()
@@ -242,9 +262,17 @@ class VaultDBDict:
             cmd_str = "{}){})".format(insert_str[:-2], value_str[:-2])
             values = tuple(values)
             self.use_db(cmd_str, values)
-        return 0
+        return True
 
     def insert_primary(self, table, new_key):
+        """creates insert strings and values dependent on if table uses single or multi--column primary key
+            :param new_key: new data
+            :type new_key: dict
+            :param table: table name
+            :type table: str
+            :return: returns needed SQL statement parts for column name str, value string, value list
+            :rtype: str, str, list
+        """
         primary = self.primary.get(table, False)
         return_value = []
         return_string_name = ""
